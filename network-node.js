@@ -1,5 +1,3 @@
-//this is our blockchain SERVERS/DISTRIBUTED (decentral) NW: expose our blockhain f/n to the web  browser
-
 const express = require('express')
 const app = express()
 const bodyParser = require('body-parser');
@@ -184,6 +182,100 @@ app.post('/register-nodes-bulk', function(req, res) {
     res.json({ note: 'bulk registration successful' });
 });
 
+app.get('/consensus', function(req, res) {
+    const requestPromises = [];
+
+    //the first thing we do is make requests to all the other nodes on the network. 
+    rodricoin.networkNodes.forEach(networkNodeUrl => {
+        const requestOptions = {
+            uri: networkNodeUrl + '/blockchain',
+            method: "GET", //has no body on a get request
+            json: true
+        };
+        requestPromises.push(rp(requestOptions));
+    });
+
+    //this loads up our array of all the blockchains 
+    Promise.all(requestPromises)
+        .then(blockchains => {
+            //this blockchains is an array of all the other blockchains from all the other nodes
+            //now we iterate through to see which is the longest
+
+            //we've got to set up some tracking variables for the loop to follow 
+            const currentChainLength = rodricoin.chain.length;
+            let maxChainLength = currentChainLength;
+            let newLongestChain = null;
+            let newPendingTransactions = null;
+
+            //we iterate through all the blockchains in our nw looking for the longest one
+            blockchains.forEach(blockchain => {
+                //which is the longest? is any longer than ours? 
+                if (blockchain.chain.length > maxChainLength) {
+                    //this one is longer, so change up some variables
+                    maxChainLength = blockchain.chain.length;
+                    newLongestChain = blockchain.chain;
+                    newPendingTransactions = blockchain.pendingTransactions;
+                };
+
+            });
+
+            //now, if there wasn't a longer chain than ours, we do not replace. 
+            //newLongestChain would remain null or if a longer invalid one was found...
+            if (!newLongestChain || (newLongestChain && !rodricoin.chainIsValid(newLongestChain))) {
+                res.json({
+                    note: 'Current chain has not been replaced.',
+                    chain: rodricoin.chain,
+                });
+                // } else if (newLongestChain && bearcoin.chainIsValid(newLongestChain)) {
+            } else {
+                //here we found a longer one so we replace ours with the longer one.
+                rodricoin.chain = newLongestChain;
+                rodricoin.pendingTransactions = newPendingTransactions;
+                res.json({
+                    note: 'This chain has  been replaced.',
+                    chain: rodricoin.chain,
+                });
+            }
+        });
+
+});
+
+app.get('/block/:blockHash', function(req, res) {
+    //send in a block hash and get the block back
+
+    //first thing is to access the passed in paramter
+    //e.g. localhost:300X/block/890DSDSIJO998DDSDSB88BDSDS
+    const blockHash = req.params.blockHash;
+
+    //invoke our method to get null or the correct block 
+    const correctBlock = rodricoin.getBlock(blockHash);
+    res.json({
+        block: correctBlock
+    });
+});
+
+app.get('/transaction/:transactionId', function(req, res) {
+    //send in a t/x id and get back the t/x details
+    const transactionId = req.params.transactionId;
+    const transactionData = rodricoin.getTransaction(transactionId); //this gives us the t/x and the block as an object
+    res.json({
+        transaction: transactionData.transaction,
+        block: transactionData.block
+    });
+});
+
+app.get('/address/:address', function(req, res) {
+    //send in a specific address and get all the t/x associated with it: sent or received and the balance of this address' account
+    const address = req.params.address;
+    const addressData = rodricoin.getAddressData(address); //we get an object{} w t/x 
+    res.json({
+        addressData: addressData
+    })
+});
+
+app.get('/block-explorer', function(req, res) {
+    res.sendFile('./block-explorer/index.html', { root: __dirname }); //this 2nd argument says look into this directory we are already in and find that 1st file path. 
+});
 
 app.listen(port, function() {
 
