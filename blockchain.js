@@ -1,12 +1,21 @@
-//this file is our blockchain data structure
-const sha256=require('js-sha256');
+//this file is our blockchain data structure + f/n 
+
+//dependency requirement
+const sha256 = require('js-sha256');
+
+const currentNodeUrl = process.argv[3];
+const { v4: uuidv4 } = require('uuid');
+
 
 //this is a 'constructor' function...data object 
 function Blockchain() {
     this.chain = []; //initialize the chain to an empty array. We will store all of our blocks here. 
-    this.newTransactions = []; //hold all the new t/x before they are "mined" into a block 
+    this.pendingTransactions = []; //hold all the new t/x before they are "mined" into a block 
 
-    this.createNewBlock(100,'0','0');//genesis block
+    this.currentNodeUrl = currentNodeUrl;
+    this.networkNodes = [];
+
+    this.createNewBlock(100, '0', '0'); //GENESIS BLOCK! 
 };
 
 Blockchain.prototype.createNewBlock = function(nonce, previousBlockHash, hash) {
@@ -15,7 +24,7 @@ Blockchain.prototype.createNewBlock = function(nonce, previousBlockHash, hash) {
         index: this.chain.length + 1,
         //what block is this in our chain. first, or 1000th? 
         timestamp: Date.now(),
-        transactions: this.newTransactions,
+        transactions: this.pendingTransactions,
         //all of the t/x in this block
         nonce: nonce,
         //a nonce is a number only used once (2, 10, 1232349). this is the PROOF that we actually created a legit. block 
@@ -25,8 +34,8 @@ Blockchain.prototype.createNewBlock = function(nonce, previousBlockHash, hash) {
             //data from our current block hashed into a string
     };
 
-    this.newTransactions = [];
-    //clears out any newTransactions
+    this.pendingTransactions = [];
+    //clears out any pendingTransactions
     this.chain.push(newBlock);
     //add the newBlock the the chain 
 
@@ -37,6 +46,13 @@ Blockchain.prototype.getLastBlock = function() {
     return this.chain[this.chain.length - 1];
 }
 
+//Blockchain.prototype.addTransactionToPendingTransactions = function(transactionObj) {
+//this.pendingTransactions.push(transactionObj);
+//return this.getLastBlock()['index'] + 1;
+//     //gets the index of the last block of our chain plus one, for a new block
+
+// }
+
 Blockchain.prototype.createNewTransaction = function(amount, sender, recipient) {
     //create a newTransaction object
     const newTransaction = {
@@ -46,24 +62,25 @@ Blockchain.prototype.createNewTransaction = function(amount, sender, recipient) 
     };
 
     //add the newTx to the newTx data area
-    this.newTransactions.push(newTransaction);
+    this.pendingTransactions.push(newTransaction);
 
     return this.getLastBlock()['index'] + 1;
     //get the index of the last block of our chain plus one, for a new block. 
 }
 
-Blockchain.prototype.hashBlock= function(previousBlockHash,currentBlockData,nonce){
-//pascal case =rodrigoMaya, upper each word, no spaces
-//Camelcase=RodrigoMaya
-//kebob-case=rodrigo-maya
-//snake_case= rodrigo_maya_mpadilla
-const dataAsString= previousBlockHash+nonce.toString()+ JSON.stringify(currentBlockData);
-// pass all data  as a string into our new package
-const hash=sha256(dataAsString);
+Blockchain.prototype.hashBlock = function(previousBlockHash, currentBlockData, nonce) {
 
-console.log(dataAsString);
+    //smoosh all of our 3 parameters into one long string
+    const dataAsString = previousBlockHash + nonce.toString() + JSON.stringify(currentBlockData);
 
-return hash;
+    //pass all of our data as a string into our new, cool js-sha256 library/package/dependency 
+    const hash = sha256(dataAsString);
+
+    return hash;
+
+    //what does this method do? take the blockData ==> some hash result
+    //for example: "cat" ==> 77af778b51abd4a3c51c5ddd97204a9c3ae614ebccb75a606c3b6865aed6744e
+
 }
 
 Blockchain.prototype.proofOfWork = function(previousBlockHash, currentBlockData) {
@@ -83,24 +100,17 @@ Blockchain.prototype.proofOfWork = function(previousBlockHash, currentBlockData)
      == comparison. does 3 == 5, are they the same. result: false
      !== comparison. not equal. 3 !== 5, result: true 
      !== 3 !==3 result: false 
-     (=== means do they equal and are the same DATA TYPE)
+     (=== means do they equal and are the the same DATA TYPE)
     */
-    while (hash.substring(0, 2) !== '00') {
+    while (hash.substring(0, 4) !== '0000') {
         nonce++; // nonce = nonce + 1... 0 + 1 = 1. 1+1 = 2... 
         hash = this.hashBlock(previousBlockHash, currentBlockData, nonce);
     }
 
     return nonce;
 };
+
 module.exports = Blockchain;
-
-
-
-
-
-
-
-
 
 
 
