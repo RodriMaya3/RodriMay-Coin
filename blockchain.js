@@ -1,116 +1,192 @@
-//this file is our blockchain data structure + f/n 
-
-//dependency requirement
 const sha256 = require('js-sha256');
-
 const currentNodeUrl = process.argv[3];
 const { v4: uuidv4 } = require('uuid');
 
 
-//this is a 'constructor' function...data object 
 function Blockchain() {
-    this.chain = []; //initialize the chain to an empty array. We will store all of our blocks here. 
-    this.pendingTransactions = []; //hold all the new t/x before they are "mined" into a block 
+    this.chain = [];
+    this.pendingTransactions = [];
 
     this.currentNodeUrl = currentNodeUrl;
     this.networkNodes = [];
 
-    this.createNewBlock(100, '0', '0'); //GENESIS BLOCK! 
+    this.createNewBlock(100, '0', '0');
+    //pass in arbitrary parameters, the only time this should be done is here for the GENESIS BLOCK
+
 };
 
 Blockchain.prototype.createNewBlock = function(nonce, previousBlockHash, hash) {
-    //all of these terms will  soon be revealed
     const newBlock = {
         index: this.chain.length + 1,
-        //what block is this in our chain. first, or 1000th? 
         timestamp: Date.now(),
         transactions: this.pendingTransactions,
-        //all of the t/x in this block
         nonce: nonce,
-        //a nonce is a number only used once (2, 10, 1232349). this is the PROOF that we actually created a legit. block 
         hash: hash,
-        //this data from our new block.
         previousBlockHash: previousBlockHash
-            //data from our current block hashed into a string
     };
 
     this.pendingTransactions = [];
-    //clears out any pendingTransactions
     this.chain.push(newBlock);
-    //add the newBlock the the chain 
 
     return newBlock;
-}
+};
 
 Blockchain.prototype.getLastBlock = function() {
     return this.chain[this.chain.length - 1];
-}
-
-//Blockchain.prototype.addTransactionToPendingTransactions = function(transactionObj) {
-//this.pendingTransactions.push(transactionObj);
-//return this.getLastBlock()['index'] + 1;
-//     //gets the index of the last block of our chain plus one, for a new block
-
-// }
+};
 
 Blockchain.prototype.createNewTransaction = function(amount, sender, recipient) {
-    //create a newTransaction object
     const newTransaction = {
+        //create a newTransaction object
         amount: amount,
         sender: sender,
-        recipient: recipient
+        recipient: recipient,
+        transactionId: uuidv4().split('-').join('')
     };
 
-    //add the newTx to the newTx data area
-    this.pendingTransactions.push(newTransaction);
+    return newTransaction;
+};
 
+Blockchain.prototype.addTransactionToPendingTransactions = function(transactionObj) {
+    this.pendingTransactions.push(transactionObj);
     return this.getLastBlock()['index'] + 1;
-    //get the index of the last block of our chain plus one, for a new block. 
+    //gets the index of the last block of our chain plus one, for a new block
+
 }
 
 Blockchain.prototype.hashBlock = function(previousBlockHash, currentBlockData, nonce) {
-
-    //smoosh all of our 3 parameters into one long string
     const dataAsString = previousBlockHash + nonce.toString() + JSON.stringify(currentBlockData);
-
-    //pass all of our data as a string into our new, cool js-sha256 library/package/dependency 
     const hash = sha256(dataAsString);
-
     return hash;
-
-    //what does this method do? take the blockData ==> some hash result
-    //for example: "cat" ==> 77af778b51abd4a3c51c5ddd97204a9c3ae614ebccb75a606c3b6865aed6744e
-
-}
+};
 
 Blockchain.prototype.proofOfWork = function(previousBlockHash, currentBlockData) {
-    //hashing = previous Block + current Block + nonce 
-    //set our difficulty level: hash has to start with 0 or 00 or 000 or 0000 
-    //brute force, increment nonce & run the hash until we are happy (happy = hash satisfies the business rule/difficulty level)
-
-    let nonce = 0; //start are zero, use the let keyword 'cuz this is gonna change.
-
-    //create a hash running the hashBlock() method with our default nonce of zero
+    let nonce = 0;
     let hash = this.hashBlock(previousBlockHash, currentBlockData, nonce);
-
-    //execute the code {...} while this condition is true
-    //while the first four digits of the hash are NOT 0000
-    /* in javaScript 
-     = means to assign a value. sha256 = require('js-sha256'); 
-     == comparison. does 3 == 5, are they the same. result: false
-     !== comparison. not equal. 3 !== 5, result: true 
-     !== 3 !==3 result: false 
-     (=== means do they equal and are the the same DATA TYPE)
-    */
     while (hash.substring(0, 4) !== '0000') {
-        nonce++; // nonce = nonce + 1... 0 + 1 = 1. 1+1 = 2... 
+        nonce++;
         hash = this.hashBlock(previousBlockHash, currentBlockData, nonce);
     }
 
     return nonce;
 };
 
-module.exports = Blockchain;
+Blockchain.prototype.proofOfWorkEasy = function(previousBlockHash, currentBlockData) {
+    let nonce = 0;
+    let hash = this.hashBlock(previousBlockHash, currentBlockData, nonce);
 
+    while (hash.substring(0, 1) !== '0') {
+        nonce++;
+        hash = this.hashBlock(previousBlockHash, currentBlockData, nonce);
+        // console.log('previousBlockHash:' + previousBlockHash + 'currentBlockData' + currentBlockData);
+        // console.log('nonce:' + nonce + 'hash:' + hash);
+    }
+
+    return nonce;
+}
+
+Blockchain.prototype.chainIsValid = function(blockchain) {
+
+    let validChain = true;
+
+    // console.log('how we doing?', validChain);
+    // console.log('what/s our bc length?', blockchain.length)
+
+    for (var i = 1; i < blockchain.length; i++) {
+        // console.log(i);
+        const currentBlock = blockchain[i];
+        const prevBlock = blockchain[i - 1];
+        const blockHash =
+            this.hashBlock(prevBlock['hash'], {
+                    transactions: currentBlock['transactions'],
+                    index: currentBlock['index']
+                },
+                currentBlock['nonce']
+            );
+
+        if (blockHash.substring(0, 4) != "0000") validChain = false;
+        // console.log(blockHash.substring(0, 4));
+        // console.log('got 0000s?', validChain);
+
+        if (currentBlock['previousBlockHash'] !== prevBlock['hash']) validChain = false; //chain not valid
+
+        // console.log('got matched hashes to last one?', currentBlock['previousBlockHash'], prevBlock['hash'], validChain);
+
+        // console.log("previousBlockHash==>", prevBlock['hash']);
+        // console.log("currentBlockHash ==>", currentBlock['hash']);
+
+
+    };
+    const genesisBlock = blockchain[0];
+    const correctNonce = genesisBlock['nonce'] === 100;
+    const correctPreviousHash = genesisBlock['previousBlockHash'] === '0';
+    const correctHash = genesisBlock['hash'] === '0';
+    const correctTransactions = genesisBlock['transactions'].length === 0;
+
+    // console.log(correctNonce, correctPreviousHash, correctHash, correctTransactions);
+    // console.log("genesis block hash", genesisBlock['hash'])
+
+    if (!correctNonce || !correctPreviousHash || !correctHash || !correctTransactions) validChain = false;
+
+
+    return validChain; //true if valid, false if not valid 
+
+}
+
+Blockchain.prototype.getBlock = function(blockHash) {
+    let correctBlock = null;
+    this.chain.forEach(block => {
+        if (block.hash === blockHash) correctBlock = block;
+    });
+    return correctBlock;
+}
+
+Blockchain.prototype.getTransaction = function(transactionId) {
+    let correctTransaction = null;
+    let correctBlock = null; //cuz we want to know which block the t/x is in too 
+
+    //loop through every block 
+    this.chain.forEach(block => {
+        //now loop through each t/x in that block
+        block.transactions.forEach(transaction => {
+            if (transaction.transactionId === transactionId) {
+                correctTransaction = transaction;
+                correctBlock = block;
+            }
+        });
+    });
+    return {
+        transaction: correctTransaction,
+        block: correctBlock
+    }
+}
+
+Blockchain.prototype.getAddressData = function(address) {
+    //we take in an address, so we have to collect all the t/x into a single array
+    const addressTransactions = [];
+    //new we cycle through all t/x and look in both sender & receiver to match the passed in address
+    this.chain.forEach(block => {
+        //now cycle through all t/x per block
+        block.transactions.forEach(transaction => {
+            //now we have access to every single t/x and we test each for sender or recipient
+            if (transaction.sender === address || transaction.recipient === address) addressTransactions.push(transaction); //add it to our array if it matches
+        });
+    });
+    //upon commpletion, we've loaded up the array. Now we have to figure out the balance is for this address
+    let balance = 0; //would you do this for you bank? 
+    addressTransactions.forEach(transaction => {
+        if (transaction.recipient === address) balance += transaction.amount;
+        else if (transaction.sender === address) balance -= transaction.amount;
+    });
+
+    return {
+        addressTransactions: addressTransactions,
+        addressBalance: balance
+    };
+
+}
+
+
+module.exports = Blockchain;
 
 
